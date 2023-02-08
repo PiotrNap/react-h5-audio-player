@@ -1,6 +1,6 @@
 {
-  "name": "react-h5-audio-player",
-  "version": "3.8.7",
+  "name": "@demu/react-h5-audio-player",
+  "version": "1.0.0",
   "description": "A customizable React audio player. Written in TypeScript. Mobile compatible. Keyboard friendly",
   "main": "./lib/index.js",
   "module": "./es/index.js",
@@ -44,7 +44,7 @@
     "eme"
   ],
   "author": "Hanz Luo",
-  "contributors": ["Piotr Napierala"],
+  "maintainer": "Piotr Napierala <p.napierala@mailfence.com>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/PiotrNap/react-h5-audio-player/issues"
