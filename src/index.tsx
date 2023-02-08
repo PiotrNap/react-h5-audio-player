@@ -7,24 +7,33 @@ import React, {
   CSSProperties,
   ReactElement,
   Key,
-} from 'react'
-import { Icon } from '@iconify/react'
-import playCircle from '@iconify/icons-mdi/play-circle'
-import pauseCircle from '@iconify/icons-mdi/pause-circle'
-import skipPrevious from '@iconify/icons-mdi/skip-previous'
-import skipNext from '@iconify/icons-mdi/skip-next'
-import fastForward from '@iconify/icons-mdi/fast-forward'
-import rewind from '@iconify/icons-mdi/rewind'
-import volumeHigh from '@iconify/icons-mdi/volume-high'
-import volumeMute from '@iconify/icons-mdi/volume-mute'
-import repeat from '@iconify/icons-mdi/repeat'
-import repeatOff from '@iconify/icons-mdi/repeat-off'
-import ProgressBar from './ProgressBar'
-import CurrentTime from './CurrentTime'
-import Duration from './Duration'
-import VolumeBar from './VolumeBar'
-import { RHAP_UI, MAIN_LAYOUT, AUDIO_PRELOAD_ATTRIBUTE, TIME_FORMAT } from './constants'
-import { throttle, getMainLayoutClassName, getDisplayTimeBySeconds } from './utils'
+} from "react"
+import { Icon } from "@iconify/react"
+import playCircle from "@iconify/icons-mdi/play-circle"
+import pauseCircle from "@iconify/icons-mdi/pause-circle"
+import skipPrevious from "@iconify/icons-mdi/skip-previous"
+import skipNext from "@iconify/icons-mdi/skip-next"
+import fastForward from "@iconify/icons-mdi/fast-forward"
+import rewind from "@iconify/icons-mdi/rewind"
+import volumeHigh from "@iconify/icons-mdi/volume-high"
+import volumeMute from "@iconify/icons-mdi/volume-mute"
+import repeat from "@iconify/icons-mdi/repeat"
+import repeatOff from "@iconify/icons-mdi/repeat-off"
+import ProgressBar from "./ProgressBar"
+import CurrentTime from "./CurrentTime"
+import Duration from "./Duration"
+import VolumeBar from "./VolumeBar"
+import {
+  RHAP_UI,
+  MAIN_LAYOUT,
+  AUDIO_PRELOAD_ATTRIBUTE,
+  TIME_FORMAT,
+} from "./constants"
+import {
+  throttle,
+  getMainLayoutClassName,
+  getDisplayTimeBySeconds,
+} from "./utils"
 
 type CustomUIModule = RHAP_UI | ReactElement
 type CustomUIModules = Array<CustomUIModule>
@@ -120,6 +129,12 @@ interface PlayerProps {
   i18nAriaLabels?: I18nAriaLabels
   children?: ReactNode
   style?: CSSProperties
+  /**
+   * Custom DEMU
+   */
+  songID: string
+  isAllowedSongToPlay?: (s: string) => Promise<boolean>
+  chargeWalletForPlay?: (s: string) => Promise<string | void>
 }
 
 interface CustomIcons {
@@ -161,40 +176,49 @@ class H5AudioPlayer extends Component<PlayerProps> {
     volumeJumpStep: 0.1,
     loop: false,
     muted: false,
-    preload: 'auto',
+    preload: "auto",
     progressUpdateInterval: 20,
-    defaultCurrentTime: '--:--',
-    defaultDuration: '--:--',
-    timeFormat: 'auto',
+    defaultCurrentTime: "--:--",
+    defaultDuration: "--:--",
+    timeFormat: "auto",
     volume: 1,
-    className: '',
+    className: "",
     showJumpControls: true,
     showSkipControls: false,
     showDownloadProgress: true,
     showFilledProgress: true,
     showFilledVolume: false,
     customIcons: {},
-    customProgressBarSection: [RHAP_UI.CURRENT_TIME, RHAP_UI.PROGRESS_BAR, RHAP_UI.DURATION],
-    customControlsSection: [RHAP_UI.ADDITIONAL_CONTROLS, RHAP_UI.MAIN_CONTROLS, RHAP_UI.VOLUME_CONTROLS],
+    customProgressBarSection: [
+      RHAP_UI.CURRENT_TIME,
+      RHAP_UI.PROGRESS_BAR,
+      RHAP_UI.DURATION,
+    ],
+    customControlsSection: [
+      RHAP_UI.ADDITIONAL_CONTROLS,
+      RHAP_UI.MAIN_CONTROLS,
+      RHAP_UI.VOLUME_CONTROLS,
+    ],
     customAdditionalControls: [RHAP_UI.LOOP],
     customVolumeControls: [RHAP_UI.VOLUME],
-    layout: 'stacked',
+    layout: "stacked",
     hasDefaultKeyBindings: true,
     i18nAriaLabels: {
-      player: 'Audio player',
-      progressControl: 'Audio progress control',
-      volumeControl: 'Volume control',
-      play: 'Play',
-      pause: 'Pause',
-      rewind: 'Rewind',
-      forward: 'Forward',
-      previous: 'Previous',
-      next: 'Skip',
-      loop: 'Disable loop',
-      loopOff: 'Enable loop',
-      volume: 'Mute',
-      volumeMute: 'Unmute',
+      player: "Audio player",
+      progressControl: "Audio progress control",
+      volumeControl: "Volume control",
+      play: "Play",
+      pause: "Pause",
+      rewind: "Rewind",
+      forward: "Forward",
+      previous: "Previous",
+      next: "Skip",
+      loop: "Disable loop",
+      loopOff: "Enable loop",
+      volume: "Mute",
+      volumeMute: "Unmute",
     },
+    songID: "",
   }
 
   audio = createRef<HTMLAudioElement>()
@@ -211,11 +235,18 @@ class H5AudioPlayer extends Component<PlayerProps> {
 
   downloadProgressAnimationTimer?: number
 
-  togglePlay = (e: React.SyntheticEvent): void => {
+  togglePlay = async (e: React.SyntheticEvent): Promise<void> => {
     e.stopPropagation()
+
     const audio = this.audio.current
     if ((audio.paused || audio.ended) && audio.src) {
-      this.playAudioPromise()
+      const allowance = await this.props.isAllowedSongToPlay(this.props.songID)
+      if (allowance) {
+        this.playAudioPromise()
+      } else {
+        const tx = await this.props.chargeWalletForPlay(this.props.songID)
+        if (tx) this.playAudioPromise()
+      }
     } else if (!audio.paused) {
       audio.pause()
     }
@@ -309,7 +340,10 @@ class H5AudioPlayer extends Component<PlayerProps> {
       !isFinite(duration) ||
       !isFinite(prevTime)
     ) {
-      return this.props.onChangeCurrentTimeError && this.props.onChangeCurrentTimeError()
+      return (
+        this.props.onChangeCurrentTimeError &&
+        this.props.onChangeCurrentTimeError()
+      )
     }
     let currentTime = prevTime + time / 1000
     if (currentTime < 0) {
@@ -333,30 +367,33 @@ class H5AudioPlayer extends Component<PlayerProps> {
   handleKeyDown = (e: React.KeyboardEvent): void => {
     if (this.props.hasDefaultKeyBindings) {
       switch (e.key) {
-        case ' ':
-          if (e.target === this.container.current || e.target === this.progressBar.current) {
+        case " ":
+          if (
+            e.target === this.container.current ||
+            e.target === this.progressBar.current
+          ) {
             e.preventDefault() // Prevent scrolling page by pressing Space key
             this.togglePlay(e)
           }
           break
-        case 'ArrowLeft':
+        case "ArrowLeft":
           this.handleClickRewind()
           break
-        case 'ArrowRight':
+        case "ArrowRight":
           this.handleClickForward()
           break
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault() // Prevent scrolling page by pressing arrow key
           this.setJumpVolume(this.props.volumeJumpStep)
           break
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault() // Prevent scrolling page by pressing arrow key
           this.setJumpVolume(-this.props.volumeJumpStep)
           break
-        case 'l':
+        case "l":
           this.handleClickLoopButton()
           break
-        case 'm':
+        case "m":
           this.handleClickVolumeButton()
           break
       }
@@ -394,7 +431,11 @@ class H5AudioPlayer extends Component<PlayerProps> {
     switch (comp) {
       case RHAP_UI.CURRENT_TIME:
         return (
-          <div key={key} id="rhap_current-time" className="rhap_time rhap_current-time">
+          <div
+            key={key}
+            id="rhap_current-time"
+            className="rhap_time rhap_current-time"
+          >
             <CurrentTime
               audio={this.audio.current}
               isLeftTime={false}
@@ -405,7 +446,11 @@ class H5AudioPlayer extends Component<PlayerProps> {
         )
       case RHAP_UI.CURRENT_LEFT_TIME:
         return (
-          <div key={key} id="rhap_current-left-time" className="rhap_time rhap_current-left-time">
+          <div
+            key={key}
+            id="rhap_current-left-time"
+            className="rhap_time rhap_current-left-time"
+          >
             <CurrentTime
               audio={this.audio.current}
               isLeftTime={true}
@@ -433,9 +478,17 @@ class H5AudioPlayer extends Component<PlayerProps> {
         return (
           <div key={key} className="rhap_time rhap_total-time">
             {mse && mse.srcDuration ? (
-              getDisplayTimeBySeconds(mse.srcDuration, mse.srcDuration, this.props.timeFormat)
+              getDisplayTimeBySeconds(
+                mse.srcDuration,
+                mse.srcDuration,
+                this.props.timeFormat
+              )
             ) : (
-              <Duration audio={this.audio.current} defaultDuration={defaultDuration} timeFormat={timeFormat} />
+              <Duration
+                audio={this.audio.current}
+                defaultDuration={defaultDuration}
+                timeFormat={timeFormat}
+              />
             )}
           </div>
         )
@@ -449,9 +502,17 @@ class H5AudioPlayer extends Component<PlayerProps> {
         const isPlaying = this.isPlaying()
         let actionIcon: ReactNode
         if (isPlaying) {
-          actionIcon = customIcons.pause ? customIcons.pause : <Icon icon={pauseCircle} />
+          actionIcon = customIcons.pause ? (
+            customIcons.pause
+          ) : (
+            <Icon icon={pauseCircle} />
+          )
         } else {
-          actionIcon = customIcons.play ? customIcons.play : <Icon icon={playCircle} />
+          actionIcon = customIcons.play ? (
+            customIcons.play
+          ) : (
+            <Icon icon={playCircle} />
+          )
         }
         return (
           <div key={key} className="rhap_main-controls">
@@ -462,7 +523,11 @@ class H5AudioPlayer extends Component<PlayerProps> {
                 type="button"
                 onClick={onClickPrevious}
               >
-                {customIcons.previous ? customIcons.previous : <Icon icon={skipPrevious} />}
+                {customIcons.previous ? (
+                  customIcons.previous
+                ) : (
+                  <Icon icon={skipPrevious} />
+                )}
               </button>
             )}
             {showJumpControls && (
@@ -472,11 +537,17 @@ class H5AudioPlayer extends Component<PlayerProps> {
                 type="button"
                 onClick={this.handleClickRewind}
               >
-                {customIcons.rewind ? customIcons.rewind : <Icon icon={rewind} />}
+                {customIcons.rewind ? (
+                  customIcons.rewind
+                ) : (
+                  <Icon icon={rewind} />
+                )}
               </button>
             )}
             <button
-              aria-label={isPlaying ? i18nAriaLabels.pause : i18nAriaLabels.play}
+              aria-label={
+                isPlaying ? i18nAriaLabels.pause : i18nAriaLabels.play
+              }
               className="rhap_button-clear rhap_main-controls-button rhap_play-pause-button"
               type="button"
               onClick={this.togglePlay}
@@ -490,7 +561,11 @@ class H5AudioPlayer extends Component<PlayerProps> {
                 type="button"
                 onClick={this.handleClickForward}
               >
-                {customIcons.forward ? customIcons.forward : <Icon icon={fastForward} />}
+                {customIcons.forward ? (
+                  customIcons.forward
+                ) : (
+                  <Icon icon={fastForward} />
+                )}
               </button>
             )}
             {showSkipControls && (
@@ -517,9 +592,17 @@ class H5AudioPlayer extends Component<PlayerProps> {
 
         let loopIcon: ReactNode
         if (loop) {
-          loopIcon = customIcons.loop ? customIcons.loop : <Icon icon={repeat} />
+          loopIcon = customIcons.loop ? (
+            customIcons.loop
+          ) : (
+            <Icon icon={repeat} />
+          )
         } else {
-          loopIcon = customIcons.loopOff ? customIcons.loopOff : <Icon icon={repeatOff} />
+          loopIcon = customIcons.loopOff ? (
+            customIcons.loopOff
+          ) : (
+            <Icon icon={repeatOff} />
+          )
         }
         return (
           <button
@@ -538,14 +621,24 @@ class H5AudioPlayer extends Component<PlayerProps> {
 
         let volumeIcon: ReactNode
         if (volume) {
-          volumeIcon = customIcons.volume ? customIcons.volume : <Icon icon={volumeHigh} />
+          volumeIcon = customIcons.volume ? (
+            customIcons.volume
+          ) : (
+            <Icon icon={volumeHigh} />
+          )
         } else {
-          volumeIcon = customIcons.volume ? customIcons.volumeMute : <Icon icon={volumeMute} />
+          volumeIcon = customIcons.volume ? (
+            customIcons.volumeMute
+          ) : (
+            <Icon icon={volumeMute} />
+          )
         }
         return (
           <div key={key} className="rhap_volume-container">
             <button
-              aria-label={volume ? i18nAriaLabels.volume : i18nAriaLabels.volumeMute}
+              aria-label={
+                volume ? i18nAriaLabels.volume : i18nAriaLabels.volumeMute
+              }
               onClick={this.handleClickVolumeButton}
               type="button"
               className="rhap_button-clear rhap_volume-button"
@@ -582,99 +675,99 @@ class H5AudioPlayer extends Component<PlayerProps> {
       audio.volume = this.lastVolume
     }
 
-    audio.addEventListener('error', (e) => {
+    audio.addEventListener("error", (e) => {
       this.props.onError && this.props.onError(e)
     })
 
     // When enough of the file has downloaded to start playing
-    audio.addEventListener('canplay', (e) => {
+    audio.addEventListener("canplay", (e) => {
       this.props.onCanPlay && this.props.onCanPlay(e)
     })
 
     // When enough of the file has downloaded to play the entire file
-    audio.addEventListener('canplaythrough', (e) => {
+    audio.addEventListener("canplaythrough", (e) => {
       this.props.onCanPlayThrough && this.props.onCanPlayThrough(e)
     })
 
     // When audio play starts
-    audio.addEventListener('play', this.handlePlay)
+    audio.addEventListener("play", this.handlePlay)
 
     // When unloading the audio player (switching to another src)
-    audio.addEventListener('abort', this.handleAbort)
+    audio.addEventListener("abort", this.handleAbort)
 
     // When the file has finished playing to the end
-    audio.addEventListener('ended', this.handleEnded)
+    audio.addEventListener("ended", this.handleEnded)
 
     // When the media has enough data to start playing, after the play event, but also when recovering from being
     // stalled, when looping media restarts, and after seeked, if it was playing before seeking.
-    audio.addEventListener('playing', (e) => {
+    audio.addEventListener("playing", (e) => {
       this.props.onPlaying && this.props.onPlaying(e)
     })
 
     // When a seek operation begins
-    audio.addEventListener('seeking', (e) => {
+    audio.addEventListener("seeking", (e) => {
       this.props.onSeeking && this.props.onSeeking(e)
     })
 
     // when a seek operation completes
-    audio.addEventListener('seeked', (e) => {
+    audio.addEventListener("seeked", (e) => {
       this.props.onSeeked && this.props.onSeeked(e)
     })
 
     // when the requested operation (such as playback) is delayed pending the completion of another operation (such as
     // a seek).
-    audio.addEventListener('waiting', (e) => {
+    audio.addEventListener("waiting", (e) => {
       this.props.onWaiting && this.props.onWaiting(e)
     })
 
     // The media has become empty; for example, this event is sent if the media has already been loaded (or partially
     // loaded), and the load() method is called to reload it.
-    audio.addEventListener('emptied', (e) => {
+    audio.addEventListener("emptied", (e) => {
       this.props.onEmptied && this.props.onEmptied(e)
     })
 
     // when the user agent is trying to fetch media data, but data is unexpectedly not forthcoming
-    audio.addEventListener('stalled', (e) => {
+    audio.addEventListener("stalled", (e) => {
       this.props.onStalled && this.props.onStalled(e)
     })
 
     // when loading of the media is suspended; this may happen either because the download has completed or because it
     // has been paused for any other reason
-    audio.addEventListener('suspend', (e) => {
+    audio.addEventListener("suspend", (e) => {
       this.props.onSuspend && this.props.onSuspend(e)
     })
 
     //  when loading of the media begins
-    audio.addEventListener('loadstart', (e) => {
+    audio.addEventListener("loadstart", (e) => {
       this.props.onLoadStart && this.props.onLoadStart(e)
     })
 
     // when media's metadata has finished loading; all attributes now contain as much useful information as they're
     // going to
-    audio.addEventListener('loadedmetadata', (e) => {
+    audio.addEventListener("loadedmetadata", (e) => {
       this.props.onLoadedMetaData && this.props.onLoadedMetaData(e)
     })
 
     // when the first frame of the media has finished loading.
-    audio.addEventListener('loadeddata', (e) => {
+    audio.addEventListener("loadeddata", (e) => {
       this.props.onLoadedData && this.props.onLoadedData(e)
     })
 
     // When the user pauses playback
-    audio.addEventListener('pause', this.handlePause)
+    audio.addEventListener("pause", this.handlePause)
 
     audio.addEventListener(
-      'timeupdate',
+      "timeupdate",
       throttle((e) => {
         this.props.onListen && this.props.onListen(e)
       }, this.props.listenInterval)
     )
 
-    audio.addEventListener('volumechange', (e) => {
+    audio.addEventListener("volumechange", (e) => {
       this.props.onVolumeChange && this.props.onVolumeChange(e)
     })
 
-    audio.addEventListener('encrypted', (e) => {
+    audio.addEventListener("encrypted", (e) => {
       const { mse } = this.props
       mse && mse.onEcrypted && mse.onEcrypted(e)
     })
@@ -711,8 +804,10 @@ class H5AudioPlayer extends Component<PlayerProps> {
       i18nAriaLabels,
     } = this.props
     const loop = this.audio.current ? this.audio.current.loop : loopProp
-    const loopClass = loop ? 'rhap_loop--on' : 'rhap_loop--off'
-    const isPlayingClass = this.isPlaying() ? 'rhap_play-status--playing' : 'rhap_play-status--paused'
+    const loopClass = loop ? "rhap_loop--on" : "rhap_loop--off"
+    const isPlayingClass = this.isPlaying()
+      ? "rhap_play-status--playing"
+      : "rhap_play-status--paused"
 
     return (
       /* We want the container to catch bubbled events */
@@ -743,8 +838,12 @@ class H5AudioPlayer extends Component<PlayerProps> {
         </audio>
         {header && <div className="rhap_header">{header}</div>}
         <div className={`rhap_main ${getMainLayoutClassName(layout)}`}>
-          <div className="rhap_progress-section">{this.renderUIModules(customProgressBarSection)}</div>
-          <div className="rhap_controls-section">{this.renderUIModules(customControlsSection)}</div>
+          <div className="rhap_progress-section">
+            {this.renderUIModules(customProgressBarSection)}
+          </div>
+          <div className="rhap_controls-section">
+            {this.renderUIModules(customControlsSection)}
+          </div>
         </div>
         {footer && <div className="rhap_footer">{footer}</div>}
       </div>
