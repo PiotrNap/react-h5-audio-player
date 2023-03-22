@@ -133,6 +133,7 @@ interface PlayerProps {
    * Custom DEMU
    */
   songID: string
+  isAvailableSongOffline?: boolean
   isAllowedSongToPlay?: (s: string) => Promise<boolean>
   chargeWalletForPlay?: (s: string) => Promise<string | void>
 }
@@ -241,7 +242,7 @@ class H5AudioPlayer extends Component<PlayerProps> {
     const audio = this.audio.current
     if ((audio.paused || audio.ended) && audio.src) {
       const allowance = await this.props.isAllowedSongToPlay(this.props.songID)
-      if (allowance) {
+      if (this.props.isAvailableSongOffline || allowance) {
         this.playAudioPromise()
       } else {
         const tx = await this.props.chargeWalletForPlay(this.props.songID)
