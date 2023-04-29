@@ -1,6 +1,6 @@
 {
   "name": "@demu/react-h5-audio-player",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A customizable React audio player. Written in TypeScript. Mobile compatible. Keyboard friendly",
   "main": "./lib/index.js",
   "module": "./es/index.js",

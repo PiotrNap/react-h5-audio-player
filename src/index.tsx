@@ -236,11 +236,17 @@ class H5AudioPlayer extends Component<PlayerProps> {
 
   downloadProgressAnimationTimer?: number
 
-  togglePlay = async (e: React.SyntheticEvent): Promise<void> => {
+  togglePlay = async (
+    e: React.SyntheticEvent,
+    trackListToggle: boolean = false
+  ): Promise<void> => {
     e.stopPropagation()
 
     const audio = this.audio.current
-    if ((audio.paused || audio.ended) && audio.src) {
+    if (
+      (trackListToggle || (!trackListToggle && audio.paused) || audio.ended) &&
+      audio.src
+    ) {
       const allowance = await this.props.isAllowedSongToPlay(this.props.songID)
       if (this.props.isAvailableSongOffline || allowance) {
         this.playAudioPromise()
