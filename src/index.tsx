@@ -133,9 +133,14 @@ interface PlayerProps {
    * Custom DEMU
    */
   songID: string
+  isWalletAvailable: boolean
+  isWalletConnected: boolean
   isAvailableSongOffline?: boolean
+  onTrackPlay?: (songID: string) => Promise<any>
   isAllowedSongToPlay?: (s: string) => Promise<boolean>
   chargeWalletForPlay?: (s: string) => Promise<string | void>
+  showMissingWalletInfo?: () => void
+  initializeWalletConnection?: () => Promise<any>
 }
 
 interface CustomIcons {
@@ -190,6 +195,8 @@ class H5AudioPlayer extends Component<PlayerProps> {
     showFilledProgress: true,
     showFilledVolume: false,
     customIcons: {},
+    isWalletAvailable: false,
+    isWalletConnected: false,
     customProgressBarSection: [
       RHAP_UI.CURRENT_TIME,
       RHAP_UI.PROGRESS_BAR,
@@ -236,27 +243,17 @@ class H5AudioPlayer extends Component<PlayerProps> {
 
   downloadProgressAnimationTimer?: number
 
-  togglePlay = async (
-    e: React.SyntheticEvent,
-    trackListToggle: boolean = false
-  ): Promise<void> => {
+  togglePlay = async (e: React.SyntheticEvent): Promise<void> => {
     e.stopPropagation()
-
     const audio = this.audio.current
-    if (
-      (trackListToggle || (!trackListToggle && audio.paused) || audio.ended) &&
-      audio.src
-    ) {
-      const allowance = await this.props.isAllowedSongToPlay(this.props.songID)
-      if (this.props.isAvailableSongOffline || allowance) {
-        this.playAudioPromise()
-      } else {
-        const tx = await this.props.chargeWalletForPlay(this.props.songID)
-        if (tx) this.playAudioPromise()
-      }
-    } else if (!audio.paused) {
-      audio.pause()
-    }
+    if (!audio.paused) return audio.pause()
+
+    const audioSource = await this.props.onTrackPlay(this.props.songID)
+    if (!audioSource)
+      throw new Error(`JUKEBOX_PLAYER: Unable to play. Missing audio source`)
+
+    this.audio.current.src = audioSource
+    this.playAudioPromise()
   }
 
   /**
