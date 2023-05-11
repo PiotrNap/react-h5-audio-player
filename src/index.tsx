@@ -229,6 +229,7 @@ class H5AudioPlayer extends Component<PlayerProps> {
     songID: "",
   }
 
+  playPromise?: Promise<any>
   audio = createRef<HTMLAudioElement>()
 
   progressBar = createRef<HTMLDivElement>()
@@ -246,13 +247,19 @@ class H5AudioPlayer extends Component<PlayerProps> {
   togglePlay = async (e: React.SyntheticEvent): Promise<void> => {
     e.stopPropagation()
     const audio = this.audio.current
+
+    if (!audio) return
     if (!audio.paused) return audio.pause()
 
     const audioSource = await this.props.onTrackPlay(this.props.songID)
+
     if (!audioSource)
       throw new Error(`JUKEBOX_PLAYER: Unable to play. Missing audio source`)
 
-    this.audio.current.src = audioSource
+    if (audio.src !== audioSource) {
+      await this.playPromise
+      audio.src = audioSource
+    }
     this.playAudioPromise()
   }
 
@@ -262,13 +269,16 @@ class H5AudioPlayer extends Component<PlayerProps> {
    * Reference: https://developers.google.com/web/updates/2017/06/play-request-was-interrupted
    */
   playAudioPromise = (): void => {
-    const playPromise = this.audio.current.play()
+    this.playPromise = this.audio.current.play()
     // playPromise is null in IE 11
-    if (playPromise) {
-      playPromise.then(null).catch((err) => {
-        const { onPlayError } = this.props
-        onPlayError && onPlayError(new Error(err))
-      })
+    if (this.playPromise) {
+      this.playPromise
+        .then(null)
+        .catch((err) => {
+          const { onPlayError } = this.props
+          onPlayError && onPlayError(new Error(err))
+        })
+        .finally(() => (this.playPromise = null))
     } else {
       // Remove forceUpdate when stop supporting IE 11
       this.forceUpdate()
